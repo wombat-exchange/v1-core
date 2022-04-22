@@ -1,0 +1,26 @@
+# JS
+node_modules
+yarn-error.log
+typechain
+
+# Test
+coverage/
+coverage.json
+
+# Hardhat files
+cache
+artifacts
+deployments/**/solcInputs
+deployments/localhost
+build
+
+# Mainnet Deployment
+.env
+
+# OZ
+.openzeppelin/unknown-*.json
+
+# Mac
+.DS_Store
+.vscode
+.vscode/launch.json
