@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.5;
+pragma solidity ^0.8.5;
 
 import '../libraries/DSMath.sol';
 import '../libraries/SignedSafeMath.sol';
@@ -12,8 +12,8 @@ import '../libraries/SignedSafeMath.sol';
 contract CoreV2 {
     using DSMath for uint256;
     using SignedSafeMath for int256;
-    int256 internal constant WAD_I = 10**18;
-    uint256 internal constant WAD = 10**18;
+    int256 internal constant WAD_I = 10 ** 18;
+    uint256 internal constant WAD = 10 ** 18;
 
     error CORE_UNDERFLOW();
 
@@ -73,13 +73,7 @@ contract CoreV2 {
      * @param A amplification factor
      * @return The invariant constant between token x and token y ("D")
      */
-    function _invariantFunc(
-        int256 Lx,
-        int256 rx,
-        int256 Ly,
-        int256 ry,
-        int256 A
-    ) internal pure returns (int256) {
+    function _invariantFunc(int256 Lx, int256 rx, int256 Ly, int256 ry, int256 A) internal pure returns (int256) {
         int256 a = Lx.wmul(rx) + Ly.wmul(ry);
         int256 b = A.wmul(Lx.wdiv(rx) + Ly.wdiv(ry));
         return a - b;
@@ -95,13 +89,7 @@ contract CoreV2 {
      * @param A amplification factor
      * @return The quadratic equation b coefficient ("b")
      */
-    function _coefficientFunc(
-        int256 Lx,
-        int256 Ly,
-        int256 rx_,
-        int256 D,
-        int256 A
-    ) internal pure returns (int256) {
+    function _coefficientFunc(int256 Lx, int256 Ly, int256 rx_, int256 D, int256 A) internal pure returns (int256) {
         return Lx.wmul(rx_ - A.wdiv(rx_)).wdiv(Ly) - D.wdiv(Ly);
     }
 
@@ -190,29 +178,16 @@ contract CoreV2 {
         r_i_ = _solveQuad(b_, A);
     }
 
-    function _equilCovRatio(
-        int256 D,
-        int256 SL,
-        int256 A
-    ) internal pure returns (int256 er) {
+    function _equilCovRatio(int256 D, int256 SL, int256 A) internal pure returns (int256 er) {
         int256 b = -(D.wdiv(SL));
         er = _solveQuad(b, A);
     }
 
-    function _newEquilCovRatio(
-        int256 er,
-        int256 SL,
-        int256 delta_i
-    ) internal pure returns (int256 er_) {
+    function _newEquilCovRatio(int256 er, int256 SL, int256 delta_i) internal pure returns (int256 er_) {
         er_ = (delta_i + SL.wmul(er)).wdiv(delta_i + SL);
     }
 
-    function _newInvariantFunc(
-        int256 er_,
-        int256 A,
-        int256 SL,
-        int256 delta_i
-    ) internal pure returns (int256 D_) {
+    function _newInvariantFunc(int256 er_, int256 A, int256 SL, int256 delta_i) internal pure returns (int256 D_) {
         D_ = (SL + delta_i).wmul(er_ - A.wdiv(er_));
     }
 

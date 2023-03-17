@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts v4.3.2 (utils/math/SignedSafeMath.sol)
 
-pragma solidity 0.8.5;
+pragma solidity ^0.8.5;
 
 /**
  * @dev Wrappers over Solidity's arithmetic operations.
@@ -10,7 +10,7 @@ pragma solidity 0.8.5;
  * now has built in overflow checking.
  */
 library SignedSafeMath {
-    int256 public constant WAD = 10**18;
+    int256 public constant WAD = 10 ** 18;
 
     //rounds to zero if x*y < WAD / 2
     function wdiv(int256 x, int256 y) internal pure returns (int256) {
@@ -59,9 +59,9 @@ library SignedSafeMath {
     // Convert x to WAD (18 decimals) from d decimals.
     function toWad(int256 x, uint8 d) internal pure returns (int256) {
         if (d < 18) {
-            return x * int256(10**(18 - d));
+            return x * int256(10 ** (18 - d));
         } else if (d > 18) {
-            return (x / int256(10**(d - 18)));
+            return (x / int256(10 ** (d - 18)));
         }
         return x;
     }
@@ -69,9 +69,9 @@ library SignedSafeMath {
     // Convert x from WAD (18 decimals) to d decimals.
     function fromWad(int256 x, uint8 d) internal pure returns (int256) {
         if (d < 18) {
-            return (x / int256(10**(18 - d)));
+            return (x / int256(10 ** (18 - d)));
         } else if (d > 18) {
-            return x * int256(10**(d - 18));
+            return x * int256(10 ** (d - 18));
         }
         return x;
     }
@@ -79,5 +79,13 @@ library SignedSafeMath {
     function toUint256(int256 value) internal pure returns (uint256) {
         require(value >= 0, 'value must be positive');
         return uint256(value);
+    }
+
+    function abs(int256 value) internal pure returns (uint256) {
+        if (value < 0) {
+            return uint256(-value);
+        } else {
+            return uint256(value);
+        }
     }
 }

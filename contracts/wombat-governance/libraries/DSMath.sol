@@ -34,6 +34,24 @@ library DSMath {
         }
     }
 
+    // Babylonian Method with initial guess
+    function sqrt(uint256 y, uint256 guess) internal pure returns (uint256 z) {
+        if (y > 3) {
+            if (guess > y || guess == 0) {
+                z = y;
+            } else {
+                z = guess;
+            }
+            uint256 x = (y / z + z) / 2;
+            while (x != z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
+    }
+
     //rounds to zero if x*y < WAD / 2
     function wmul(uint256 x, uint256 y) internal pure returns (uint256) {
         return ((x * y) + (WAD / 2)) / WAD;
@@ -41,25 +59,5 @@ library DSMath {
 
     function wdiv(uint256 x, uint256 y) internal pure returns (uint256) {
         return ((x * WAD) + (y / 2)) / y;
-    }
-
-    // Convert x to WAD (18 decimals) from d decimals.
-    function toWad(uint256 x, uint8 d) internal pure returns (uint256) {
-        if (d < 18) {
-            return x * 10 ** (18 - d);
-        } else if (d > 18) {
-            return (x / (10 ** (d - 18)));
-        }
-        return x;
-    }
-
-    // Convert x from WAD (18 decimals) to d decimals.
-    function fromWad(uint256 x, uint8 d) internal pure returns (uint256) {
-        if (d < 18) {
-            return (x / (10 ** (18 - d)));
-        } else if (d > 18) {
-            return x * 10 ** (d - 18);
-        }
-        return x;
     }
 }

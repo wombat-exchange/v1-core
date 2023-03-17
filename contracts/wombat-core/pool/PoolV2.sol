@@ -15,12 +15,14 @@ import '../../wombat-governance/interfaces/IMasterWombat.sol';
 import '../interfaces/IPool.sol';
 
 /**
- * @title Pool
+ * @title Pool V2
  * @notice Manages deposits, withdrawals and swaps. Holds a mapping of assets and parameters.
  * @dev The main entry-point of Wombat protocol
  * Note: All variables are 18 decimals, except from that of underlying tokens
+ * Change log:
+ * - add `gap` to prevent storage collision for future upgrades
  */
-contract Pool is
+contract PoolV2 is
     Initializable,
     IPool,
     OwnableUpgradeable,
@@ -69,6 +71,11 @@ contract Pool is
 
     /// @notice A record of assets inside Pool
     AssetMap internal _assets;
+
+    // Slots reserved for future use
+    uint128 internal _used1; // Remember to initialize before use.
+    uint128 internal _used2; // Remember to initialize before use.
+    uint256[49] private gap;
 
     /* Events */
 
@@ -167,38 +174,50 @@ contract Pool is
     }
 
     /**
-     * @dev pause pool, restricting certain operations
+     * Permisioneed functions
      */
-    function pause() external nonReentrant {
-        _onlyDev();
-        _pause();
+
+    /**
+     * @notice Adds asset to pool, reverts if asset already exists in pool
+     * @param token The address of token
+     * @param asset The address of the Wombat Asset contract
+     */
+    function addAsset(address token, address asset) external onlyOwner {
+        _checkAddress(asset);
+        _checkAddress(token);
+
+        if (_containsAsset(token)) revert WOMBAT_ASSET_ALREADY_EXIST();
+        _assets.values[token] = IAsset(asset);
+        _assets.indexOf[token] = _assets.keys.length;
+        _assets.keys.push(token);
+
+        emit AssetAdded(token, asset);
     }
 
     /**
-     * @dev unpause pool, enabling certain operations
+     * @notice Removes asset from asset struct
+     * @dev Can only be called by owner
+     * @param token The address of token to remove
      */
-    function unpause() external nonReentrant {
-        _onlyDev();
-        _unpause();
+    function removeAsset(address token) external onlyOwner {
+        if (!_containsAsset(token)) revert WOMBAT_ASSET_NOT_EXISTS();
+
+        address asset = address(_getAsset(token));
+        delete _assets.values[token];
+
+        uint256 index = _assets.indexOf[token];
+        uint256 lastIndex = _assets.keys.length - 1;
+        address lastKey = _assets.keys[lastIndex];
+
+        _assets.indexOf[lastKey] = index;
+        delete _assets.indexOf[token];
+
+        _assets.keys[index] = lastKey;
+        _assets.keys.pop();
+
+        emit AssetRemoved(token, asset);
     }
 
-    /**
-     * @dev pause asset, restricting deposit and swap operations
-     */
-    function pauseAsset(address token) external nonReentrant {
-        _onlyDev();
-        _pauseAsset(token);
-    }
-
-    /**
-     * @dev unpause asset, enabling deposit and swap operations
-     */
-    function unpauseAsset(address token) external nonReentrant {
-        _onlyDev();
-        _unpauseAsset(token);
-    }
-
-    // Setters //
     /**
      * @notice Changes the contract dev. Can only be set by the contract owner.
      * @param dev_ new contract dev address
@@ -236,11 +255,29 @@ contract Pool is
     }
 
     function setFee(uint256 lpDividendRatio_, uint256 retentionRatio_) external onlyOwner {
-        if (retentionRatio_ + lpDividendRatio_ > WAD) revert WOMBAT_INVALID_VALUE();
-        mintAllFee();
+        unchecked {
+            if (retentionRatio_ + lpDividendRatio_ > WAD) revert WOMBAT_INVALID_VALUE();
+        }
+        _mintAllFees();
         retentionRatio = retentionRatio_;
         lpDividendRatio = lpDividendRatio_;
         emit SetFee(lpDividendRatio_, retentionRatio_);
+    }
+
+    /**
+     * @dev unit of amount should be in WAD
+     */
+    function transferTipBucket(address token, uint256 amount, address to) external onlyOwner {
+        IAsset asset = _assetOf(token);
+        uint256 tipBucketBal = tipBucketBalance(token);
+
+        if (amount > tipBucketBal) {
+            // revert if there's not enough amount in the tip bucket
+            revert WOMBAT_INVALID_VALUE();
+        }
+
+        asset.transferUnderlyingToken(to, amount.fromWad(asset.underlyingTokenDecimals()));
+        emit TransferTipBucket(token, amount, to);
     }
 
     /**
@@ -262,48 +299,59 @@ contract Pool is
         emit SetMintFeeThreshold(mintFeeThreshold_);
     }
 
+    /**
+     * @dev pause pool, restricting certain operations
+     */
+    function pause() external {
+        _onlyDev();
+        _pause();
+    }
+
+    /**
+     * @dev unpause pool, enabling certain operations
+     */
+    function unpause() external {
+        _onlyDev();
+        _unpause();
+    }
+
+    /**
+     * @dev pause asset, restricting deposit and swap operations
+     */
+    function pauseAsset(address token) external {
+        _onlyDev();
+        _pauseAsset(token);
+    }
+
+    /**
+     * @dev unpause asset, enabling deposit and swap operations
+     */
+    function unpauseAsset(address token) external {
+        _onlyDev();
+        _unpauseAsset(token);
+    }
+
+    /**
+     * @notice Move fund from tip bucket to the pool to keep r* = 1 as error accumulates
+     * unit of amount should be in WAD
+     */
+    function fillPool(address token, uint256 amount) external {
+        _onlyDev();
+        IAsset asset = _assetOf(token);
+        uint256 tipBucketBal = asset.underlyingTokenBalance().toWad(asset.underlyingTokenDecimals()) -
+            asset.cash() -
+            _feeCollected[asset];
+
+        if (amount > tipBucketBal) {
+            // revert if there's not enough amount in the tip bucket
+            revert WOMBAT_INVALID_VALUE();
+        }
+
+        asset.addCash(amount);
+        emit FillPool(token, amount);
+    }
+
     /* Assets */
-
-    /**
-     * @notice Adds asset to pool, reverts if asset already exists in pool
-     * @param token The address of token
-     * @param asset The address of the Wombat Asset contract
-     */
-    function addAsset(address token, address asset) external onlyOwner nonReentrant {
-        _checkAddress(asset);
-        _checkAddress(token);
-
-        if (_containsAsset(token)) revert WOMBAT_ASSET_ALREADY_EXIST();
-        _assets.values[token] = IAsset(asset);
-        _assets.indexOf[token] = _assets.keys.length;
-        _assets.keys.push(token);
-
-        emit AssetAdded(token, asset);
-    }
-
-    /**
-     * @notice Removes asset from asset struct
-     * @dev Can only be called by owner
-     * @param token The address of token to remove
-     */
-    function removeAsset(address token) external onlyOwner {
-        if (!_containsAsset(token)) revert WOMBAT_ASSET_NOT_EXISTS();
-
-        address asset = address(_getAsset(token));
-        delete _assets.values[token];
-
-        uint256 index = _assets.indexOf[token];
-        uint256 lastIndex = _assets.keys.length - 1;
-        address lastKey = _assets.keys[lastIndex];
-
-        _assets.indexOf[lastKey] = index;
-        delete _assets.indexOf[token];
-
-        _assets.keys[index] = lastKey;
-        _assets.keys.pop();
-
-        emit AssetRemoved(token, asset);
-    }
 
     /**
      * @notice Return list of tokens in the pool
@@ -382,7 +430,9 @@ contract Pool is
         ).toUint256();
 
         if (liabilityToMint >= amount) {
-            reward = liabilityToMint - amount;
+            unchecked {
+                reward = liabilityToMint - amount;
+            }
         } else {
             // rounding error
             liabilityToMint = amount;
@@ -637,8 +687,8 @@ contract Pool is
         (withdrewAmount, , ) = _withdrawFrom(fromAsset, liquidity);
 
         // quote swap
-        uint256 fromCash = uint256(fromAsset.cash()) - withdrewAmount;
-        uint256 fromLiability = uint256(fromAsset.liability()) - liquidity;
+        uint256 fromCash = fromAsset.cash() - withdrewAmount;
+        uint256 fromLiability = fromAsset.liability() - liquidity;
 
         uint256 scaleFactor = _quoteFactor(fromAsset, toAsset);
         if (scaleFactor != WAD) {
@@ -765,12 +815,16 @@ contract Pool is
         (actualToAmount, haircut) = _quoteFrom(fromAsset, toAsset, int256(fromAmount));
         _checkAmount(minimumToAmount, actualToAmount);
 
-        _feeCollected[toAsset] += haircut;
+        unchecked {
+            _feeCollected[toAsset] += haircut;
+        }
 
         fromAsset.addCash(fromAmount);
 
         // haircut is removed from cash to maintain r* = 1. It is distributed during _mintFee()
-        toAsset.removeCash(actualToAmount + haircut);
+        unchecked {
+            toAsset.removeCash(actualToAmount + haircut);
+        }
 
         // revert if cov ratio < 1% to avoid precision error
         if (uint256(toAsset.cash()).wdiv(toAsset.liability()) < WAD / 100) revert WOMBAT_FORBIDDEN();
@@ -893,48 +947,20 @@ contract Pool is
 
     function tipBucketBalance(address token) public view returns (uint256 balance) {
         IAsset asset = _assetOf(token);
-        return
-            asset.underlyingTokenBalance().toWad(asset.underlyingTokenDecimals()) - asset.cash() - _feeCollected[asset];
+        unchecked {
+            return
+                asset.underlyingTokenBalance().toWad(asset.underlyingTokenDecimals()) -
+                asset.cash() -
+                _feeCollected[asset];
+        }
     }
 
     /* Utils */
 
-    // this function is used to move fund from tip bucket to the pool to keep r* = 1 as error accumulates
-    // unit of amount should be in WAD
-    function fillPool(address token, uint256 amount) external {
-        _onlyDev();
-        IAsset asset = _assetOf(token);
-        uint256 tipBucketBal = asset.underlyingTokenBalance().toWad(asset.underlyingTokenDecimals()) -
-            asset.cash() -
-            _feeCollected[asset];
-
-        if (amount > tipBucketBal) {
-            // revert if there's not enough amount in the tip bucket
-            revert WOMBAT_INVALID_VALUE();
-        }
-
-        asset.addCash(amount);
-        emit FillPool(token, amount);
-    }
-
-    // unit of amount should be in WAD
-    function transferTipBucket(address token, uint256 amount, address to) external onlyOwner {
-        IAsset asset = _assetOf(token);
-        uint256 tipBucketBal = tipBucketBalance(token);
-
-        if (amount > tipBucketBal) {
-            // revert if there's not enough amount in the tip bucket
-            revert WOMBAT_INVALID_VALUE();
-        }
-
-        asset.transferUnderlyingToken(to, amount.fromWad(asset.underlyingTokenDecimals()));
-        emit TransferTipBucket(token, amount, to);
-    }
-
     function _globalInvariantFunc() internal view virtual returns (int256 D, int256 SL) {
         int256 A = int256(ampFactor);
 
-        for (uint256 i = 0; i < _sizeOfAssetList(); i++) {
+        for (uint256 i; i < _sizeOfAssetList(); ++i) {
             IAsset asset = _getAsset(_getKeyAtIndex(i));
 
             // overflow is unrealistic
@@ -986,8 +1012,8 @@ contract Pool is
         _feeCollected[asset] = 0;
     }
 
-    function mintAllFee() internal {
-        for (uint256 i = 0; i < _sizeOfAssetList(); i++) {
+    function _mintAllFees() internal {
+        for (uint256 i; i < _sizeOfAssetList(); ++i) {
             IAsset asset = _getAsset(_getKeyAtIndex(i));
             _mintFee(asset);
         }
