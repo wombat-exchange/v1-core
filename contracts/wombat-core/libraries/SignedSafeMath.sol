@@ -81,6 +81,11 @@ library SignedSafeMath {
         return uint256(value);
     }
 
+    function toInt256(uint256 value) internal pure returns (int256) {
+        require(value <= uint256(type(int256).max), 'value must be positive');
+        return int256(value);
+    }
+
     function abs(int256 value) internal pure returns (uint256) {
         if (value < 0) {
             return uint256(-value);

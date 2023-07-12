@@ -369,19 +369,18 @@ contract Voter is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable,
         wom.transfer(address(msg.sender), wom.balanceOf(address(this)));
     }
 
-    // TODO: create PR to check in this
     /// @notice avoids loosing funds in case there is any tokens sent to this contract
     /// @dev only to be called by owner
-    // function emergencyTokenWithdraw(address token) public onlyOwner {
-    //     // send that balance back to owner
-    //     if (token == address(0)) {
-    //         // is native token
-    //         (bool success, ) = msg.sender.call{value: address(this).balance}('');
-    //         require(success, 'Transfer failed');
-    //     } else {
-    //         IERC20(token).transfer(msg.sender, IERC20(token).balanceOf(address(this)));
-    //     }
-    // }
+    function emergencyTokenWithdraw(address token) public onlyOwner {
+        // send that balance back to owner
+        if (token == address(0)) {
+            // is native token
+            (bool success, ) = msg.sender.call{value: address(this).balance}('');
+            require(success, 'Transfer failed');
+        } else {
+            IERC20(token).transfer(msg.sender, IERC20(token).balanceOf(address(this)));
+        }
+    }
 
     /**
      * Read-only functions

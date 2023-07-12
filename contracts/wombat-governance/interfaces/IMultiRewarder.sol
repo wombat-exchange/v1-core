@@ -4,6 +4,8 @@ pragma solidity ^0.8.5;
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 
 interface IMultiRewarder {
+    function lpToken() external view returns (IERC20 lpToken);
+
     function onReward(address _user, uint256 _lpAmount) external returns (uint256[] memory rewards);
 
     function pendingTokens(address _user) external view returns (uint256[] memory rewards);

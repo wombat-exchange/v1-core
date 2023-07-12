@@ -192,7 +192,7 @@ contract CoreV2 {
     }
 
     /**
-     * @notice TODO (if any) from Yellow Paper (Haircut).
+     * @notice From Yellow Paper (Haircut).
      * @dev Applies haircut rate to amount
      * @param amount The amount that will receive the discount
      * @param rate The rate to be applied

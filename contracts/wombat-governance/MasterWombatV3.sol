@@ -11,12 +11,9 @@ import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 import './libraries/DSMath.sol';
 import './interfaces/IVeWom.sol';
+import './interfaces/IVoter.sol';
 import './interfaces/IMasterWombatV3.sol';
 import './interfaces/IMultiRewarder.sol';
-
-interface IVoter {
-    function distribute(address _lpToken) external;
-}
 
 /// @title MasterWombatV3
 /// @notice MasterWombat is a boss. He is not afraid of any snakes. In fact, he drinks their venoms. So, veWom holders boost

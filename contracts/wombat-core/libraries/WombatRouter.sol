@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.5;
 
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 
+import '../libraries/SignedSafeMath.sol';
 import '../interfaces/IPool.sol';
 import '../interfaces/IWombatRouter.sol';
 
@@ -22,12 +23,12 @@ interface IWNative {
  */
 contract WombatRouter is Ownable, IWombatRouter {
     using SafeERC20 for IERC20;
+    using SignedSafeMath for uint256;
 
-    // WBNB (mainnet): 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
-    // WBNB (testnet): 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd
     IWNative public immutable wNative;
 
     constructor(IWNative _wNative) {
+        require(address(_wNative) != address(0), 'WombatRouter: wNative is zero address');
         wNative = _wNative;
     }
 
@@ -234,7 +235,7 @@ contract WombatRouter is Ownable, IWombatRouter {
                 tokenPath[i + 1],
                 nextamountIn
             );
-            nextamountIn = int256(amountOut);
+            nextamountIn = amountOut.toInt256();
         }
     }
 
@@ -257,7 +258,7 @@ contract WombatRouter is Ownable, IWombatRouter {
         require(poolPath.length == tokenPath.length - 1, 'invalid pool path');
 
         // next from amount, starts with amountIn in arg
-        int256 nextAmountOut = int256(amountOut);
+        int256 nextAmountOut = amountOut.toInt256();
         haircuts = new uint256[](poolPath.length);
 
         for (uint256 i = poolPath.length; i > 0; --i) {
@@ -266,7 +267,7 @@ contract WombatRouter is Ownable, IWombatRouter {
                 tokenPath[i],
                 nextAmountOut
             );
-            nextAmountOut = int256(amountIn);
+            nextAmountOut = amountIn.toInt256();
         }
     }
 

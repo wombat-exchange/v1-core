@@ -18,7 +18,7 @@ contract DynamicAsset is Asset, IRelativePriceProvider {
     ) Asset(underlyingToken_, name_, symbol_) {}
 
     /**
-     * @notice get the relative price in WAD
+     * @notice get the relative price of 1 unit of token in WAD
      */
     function getRelativePrice() external view virtual returns (uint256) {
         return 1e18;
